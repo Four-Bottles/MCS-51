@@ -1,0 +1,221 @@
+C51 COMPILER V9.52.0.0   1602                                                              03/08/2018 01:53:54 PAGE 1   
+
+
+C51 COMPILER V9.52.0.0, COMPILATION OF MODULE 1602
+OBJECT MODULE PLACED IN 1602.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE 1602.c BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          /*********************************************************************************
+   2          * 【编写时间】： 2014年3月5日
+   3          * 【作    者】： 清翔电子:03
+   4          * 【版    本】： 1.0
+   5          * 【网    站】： http://www.qxmcu.com/ 
+   6          * 【淘宝店铺】： http://qxmcu.taobao.com/ 
+   7          * 【实验平台】： QX-MCS51 单片机开发板
+   8          * 【外部晶振】： 11.0592mhz 
+   9          * 【主控芯片】： STC89C52
+  10          * 【编译环境】： Keil μVisio3  
+  11          * 【程序功能】： 1602渐入显示                                   
+  12          * 【使用说明】： 液晶1脚接1602黑色排母的1脚  如果是无背光的液晶只有14个脚 排母右边空2个位   
+  13                           请把液晶对比度电位器顺时针调制10点钟方向，请勿多调超出极限位置会损坏电位器！
+  14          
+  15          
+  16          *  说明：免费开源，不提供源代码分析.
+  17          **********************************************************************************/
+  18          #include <reg52.h>
+  19          #define jingzhen     11059200UL      /*使用22.1184M晶体*/  //
+  20          #define botelv   9600UL        /*波特率定义为9600*/
+  21          unsigned char zifu1='1';      //待显示字符。
+  22          unsigned char zifu2='2';  
+  23          unsigned char zifu3='3';  
+  24          unsigned char zifu4='4';  
+  25          volatile unsigned char sending;
+  26          sbit S2=P3^0;
+  27          sbit S3=P3^1;
+  28          sbit S4=P3^2;
+  29          sbit S5=P3^3;
+  30          
+  31          #define uchar unsigned char
+  32          #define uint unsigned int
+  33          sbit lcden=P3^4;
+  34          sbit rs=P3^5;
+  35          sbit rw=P3^6; 
+  36          sbit dula=P2^6;
+  37          sbit wela=P2^7;
+  38          uchar table1[]="I'm Ning Kejun";
+  39          uchar table2[]="  2015211862  ";
+  40          void delay(uint x)
+  41          {
+  42   1        uint a,b;
+  43   1        for(a=x;a>0;a--)
+  44   1          for(b=10;b>0;b--); 
+  45   1      }
+  46          
+  47          void delay1(uint x)
+  48          {
+  49   1        uint a,b;
+  50   1        for(a=x;a>0;a--)
+  51   1          for(b=100;b>0;b--); 
+  52   1      }
+  53          
+  54          void write_com(uchar com)
+  55          {
+C51 COMPILER V9.52.0.0   1602                                                              03/08/2018 01:53:54 PAGE 2   
+
+  56   1        P0=com;
+  57   1        rs=0;
+  58   1        lcden=0;
+  59   1        delay(10);
+  60   1        lcden=1;
+  61   1        delay(10);
+  62   1        lcden=0;
+  63   1        
+  64   1      }
+  65          
+  66          void write_date(uchar date)
+  67          {
+  68   1        P0=date;
+  69   1        rs=1;
+  70   1        lcden=0;
+  71   1        delay(10);
+  72   1        lcden=1;
+  73   1        delay(10);
+  74   1        lcden=0;
+  75   1        
+  76   1      }
+  77          
+  78          void init()
+  79          {
+  80   1          EA=0; //暂时关闭中断
+  81   1       TMOD&=0x0F;  //定时器1模式控制在高4位
+  82   1       TMOD|=0x20;    //定时器1工作在模式2，自动重装模式
+  83   1       SCON=0x50;     //串口工作在模式1
+  84   1       TH1=256-jingzhen/(botelv*12*16);  //计算定时器重装值
+  85   1       TL1=256-jingzhen/(botelv*12*16);
+  86   1       PCON|=0x80;    //串口波特率加倍
+  87   1       ES=1;         //串行中断允许
+  88   1       TR1=1;        //启动定时器1
+  89   1       REN=1;        //允许接收 
+  90   1       EA=1;         //允许中断
+  91   1        
+  92   1              rw=0;
+  93   1        dula=0;
+  94   1        wela=0;
+  95   1        write_com(0x38);   //显示模式设置：16×2显示，5×7点阵，8位数据接口
+  96   1        delay(20);
+  97   1        write_com(0x0f);   //显示模式设置
+  98   1        delay(20);
+  99   1        write_com(0x06);   //显示模式设置：光标右移，字符不移
+ 100   1        delay(20);
+ 101   1        write_com(0x01);   //清屏幕指令，将以前的显示内容清除
+ 102   1        delay(20);  
+ 103   1      }
+ 104          void send(unsigned char d)      //发送一个字节的数据，形参d即为待发送数据。
+ 105          {
+ 106   1       
+ 107   1       SBUF=d; //将数据写入到串口缓冲
+ 108   1       sending=1;  //设置发送标志
+ 109   1       while(sending); //等待发送完毕
+ 110   1      }
+ 111          
+ 112          void main()
+ 113          {
+ 114   1        uchar a;
+ 115   1        init();
+ 116   1      
+ 117   1        write_com(0x80+17);  //将第一个字符写在向右偏移17个字符处，为后面的由右向左划入做准备。
+C51 COMPILER V9.52.0.0   1602                                                              03/08/2018 01:53:54 PAGE 3   
+
+ 118   1        delay(20);
+ 119   1        for(a=0;a<14;a++)
+ 120   1        {
+ 121   2        write_date(table1[a]);
+ 122   2        delay(20);    
+ 123   2        }
+ 124   1      
+ 125   1        write_com(0xc0+17);
+ 126   1        delay(50);
+ 127   1        for(a=0;a<13;a++)
+ 128   1        {
+ 129   2        write_date(table2[a]);
+ 130   2        delay(40);    
+ 131   2        }
+ 132   1      
+ 133   1        for(a=0;a<16;a++)
+ 134   1        {
+ 135   2          write_com(0x18); //左移
+ 136   2          delay1(600);
+ 137   2        }
+ 138   1        while(1)
+ 139   1        {
+ 140   2          if(S2==0)
+ 141   2          {
+ 142   3            delay(20);
+ 143   3            if(!S2)
+ 144   3            {
+ 145   4              while(!S2);      
+ 146   4              send(zifu1);
+ 147   4            }
+ 148   3          }
+ 149   2          if(S3==0)
+ 150   2          {
+ 151   3            delay(20);
+ 152   3            if(!S3)
+ 153   3            {
+ 154   4              while(!S3);      
+ 155   4              send(zifu2);
+ 156   4            }
+ 157   3          }
+ 158   2      
+ 159   2          if(S4==0)
+ 160   2          {
+ 161   3            delay(20);
+ 162   3            if(!S4)
+ 163   3            {
+ 164   4              while(!S4);      
+ 165   4              send(zifu3);
+ 166   4            }
+ 167   3          }
+ 168   2          
+ 169   2          if(S5==0)
+ 170   2          {
+ 171   3            delay(20);
+ 172   3            if(!S5)
+ 173   3            {
+ 174   4              while(!S5);      
+ 175   4              send(zifu4);
+ 176   4            }
+ 177   3          }
+ 178   2          
+ 179   2        }
+C51 COMPILER V9.52.0.0   1602                                                              03/08/2018 01:53:54 PAGE 4   
+
+ 180   1      }
+ 181          void uart(void) interrupt 4    //串口发送中断
+ 182          {
+ 183   1       if(RI)    //收到数据
+ 184   1       {
+ 185   2        RI=0;   //清中断请求
+ 186   2       }
+ 187   1       else      //发送完一字节数据
+ 188   1       {
+ 189   2        TI=0;
+ 190   2        sending=0;  //清正在发送标志
+ 191   2       }
+ 192   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    348    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     35    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
